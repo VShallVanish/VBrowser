@@ -1,38 +1,71 @@
 import socket
+import ssl
+import tkinter as tk
 
 class URL:
 
+    # URL Attributes
     scheme : str
     host : str
     path : str
+    port : int
 
+    # URL Constructor
     def __init__(self, url : str):
-        self.scheme, url = url.split("://", 1)
-        assert self.scheme == "http"
+        try:
+            self.scheme, url = url.split("://", 1)
+            assert self.scheme in ["http", "https", "file"]
 
-        if "/" not in url:
-            url = url + "/"
-        self.host, url = url.split("/", 1)
-        self.path = "/" + url
+            if "/" not in url:
+                url = url + "/"
+            self.host, url = url.split("/", 1)
+            
+            if self.scheme == "http":
+                self.port = 80
+                self.path = "/" + url
+            elif self.scheme == "https":
+                self.port = 443
+                self.path = "/" + url
+            elif self.scheme == "file":
+                self.port = 8000
+                self.path = "./" + url
+                
+            if ":" in self.host:
+                self.host, port = self.host.split(":", 1)
+                self.port = int(port)
+                
+        except:
+            print("Invalid URL, falling back to default URL")
+            print("User URL:", url)
+            self.__init__("file:///index.html")
 
+    # Request Method
     def request(self):
         s = socket.socket(
             family = socket.AF_INET,
             type = socket.SOCK_STREAM,
             proto = socket.IPPROTO_TCP
         )
-        s.connect((self.host, 80))
+        
+        print("Connecting to:", self.host, "on port:", self.port)
+        s.connect((self.host, self.port)) # Connect to the server
+        
+        if self.scheme == "https":
+            ctx = ssl.create_default_context()
+            s = ctx.wrap_socket(s, server_hostname=self.host)
         
         # Make a request
-        request = "GET {} HTTP/1.0\r\n".format(self.path)
+        request = "GET {} HTTP/1.1\r\n".format(self.path)
         request += "Host: {}\r\n".format(self.host)
+        request += "Connection: close\r\n"
+        request += "User-Agent: VBrowser\r\n"
         request += "\r\n"
 
         s.send(request.encode("utf8")) # Send the request
 
-        response = s.makefile("r", encoding="utf8", newline="\r\n") # Receive response and decode via UTF8(SHORTCUT)
-
         # Breaking response
+        response : str = s.makefile("r", encoding="utf8", newline="\r\n") # Receive response and decode via UTF8(SHORTCUT)
+        
         statusline = response.readline()
         version, status, explanation = statusline.split(" ", 2)
 
@@ -42,6 +75,55 @@ class URL:
             if line in "\r\n": break
             header, value = line.split(":", 1)
             response_headers[header.casefold()] = value.strip()
-    
+            
+        # Make sure data is not being sent in an encoded format    
+        assert "transfer-encoding" not in response_headers
+        assert "content-encoding" not in response_headers
 
+        content = response.read()
+        s.close()
+        
+        return content
     
+def show(body):
+    in_tag = False
+    in_entity = False
+    entity = ""
+    for c in body:
+        if c == "<":
+            in_tag = True
+        elif c == ">":
+            in_tag = False
+        elif c == "&":
+            in_entity = True
+            entity = ""
+        elif c == ";":
+            in_entity = False
+            if entity == "lt":
+                print("<", end="")
+            elif entity == "gt":
+                print(">", end="")
+            else:
+                print("&" + entity + ";", end="")
+                
+            entity = ""
+        elif in_entity:
+            entity += c
+        elif not in_tag and not in_entity:
+            print(c, end="")
+            
+    print()
+            
+def load(url):
+    if url.scheme == "file":
+        with open(url.host + url.path, "r") as f:
+            body = f.read()
+    else:    
+        body = url.request()
+    
+    show(body)
+        
+        
+if __name__ == "__main__":
+    import sys
+    load(URL(sys.argv[1]))
