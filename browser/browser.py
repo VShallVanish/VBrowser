@@ -1,6 +1,12 @@
 import socket
 import ssl
-import tkinter as tk
+import tkinter
+
+
+WIDTH, HEIGHT = 800, 600
+
+HSTEP, VSTEP = 13, 18
+
 
 class URL:
 
@@ -85,7 +91,78 @@ class URL:
         
         return content
     
-def show(body):
+class Browser:
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.window.title("VBrowser")
+        self.canvas = tkinter.Canvas(
+            self.window,
+            width=WIDTH,
+            height=HEIGHT
+        )
+        
+        # Pack and enable resizing on the canvas
+        self.canvas.pack(fill = tkinter.BOTH, expand = True)
+        
+        # self.window.bind("<Configure>", self.resize) #TODO: Fix this
+        
+        self.scroll = 0
+        self.window.bind("<Down>", self.scrollDown)
+        self.window.bind("<Up>", self.scrollUp)
+        self.window.bind("<Button-4>", self.scrollUp)
+        self.window.bind("<Button-5>", self.scrollDown)
+        self.SCROLLSTEP = 100
+        self.pageText = ""
+        
+    def resize(self, e):
+        WIDTH, HEIGHT = e.width, e.height
+        self.display_list = layout(self.pageText)
+        self.draw()
+        
+    def load(self, url):
+        if url.scheme == "file": # Handle file schema
+            with open(url.host + url.path, "r") as f:
+                body = f.read()
+        else:    
+            body = url.request()
+        
+        self.pageText = lex(body)
+        
+        self.display_list = layout(self.pageText)
+        self.draw()
+                
+    def draw(self):
+        self.canvas.delete("all")
+        for x, y, c in self.display_list:
+            if y > self.scroll + HEIGHT: continue
+            if y + VSTEP < self.scroll: continue
+            self.canvas.create_text(x, y - self.scroll, text=c)
+            
+    def scrollDown(self, e):
+        self.scroll += self.SCROLLSTEP
+        self.draw()
+        
+    def scrollUp(self, e):
+        if self.scroll > 0:
+            self.scroll -= self.SCROLLSTEP
+        self.draw()
+
+def layout(text):
+    display_list = []
+    cursor_x, cursor_y = HSTEP, VSTEP
+    
+    for c in text:
+        display_list.append((cursor_x, cursor_y, c))
+        cursor_x += HSTEP
+        
+        if cursor_x >= WIDTH - HSTEP:
+            cursor_x = HSTEP
+            cursor_y += VSTEP
+        
+    return display_list
+    
+def lex(body):
+    text = ""
     in_tag = False
     in_entity = False
     entity = ""
@@ -100,30 +177,22 @@ def show(body):
         elif c == ";":
             in_entity = False
             if entity == "lt":
-                print("<", end="")
+                text += "<"
             elif entity == "gt":
-                print(">", end="")
+                text += ">"
             else:
-                print("&" + entity + ";", end="")
-                
+                text += "&" + entity + ";"
             entity = ""
+            
         elif in_entity:
             entity += c
         elif not in_tag and not in_entity:
-            print(c, end="")
+            text += c
             
-    print()
-            
-def load(url):
-    if url.scheme == "file":
-        with open(url.host + url.path, "r") as f:
-            body = f.read()
-    else:    
-        body = url.request()
-    
-    show(body)
+    return text
         
         
 if __name__ == "__main__":
     import sys
-    load(URL(sys.argv[1]))
+    Browser().load(URL(sys.argv[1]))
+    tkinter.mainloop()
