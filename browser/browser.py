@@ -3,8 +3,9 @@ import ssl
 import tkinter
 
 
-WIDTH, HEIGHT = 800, 600
+global WIDTH, HEIGHT, HSTEP, VSTEP
 
+WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
 
 
@@ -40,10 +41,14 @@ class URL:
                 self.host, port = self.host.split(":", 1)
                 self.port = int(port)
                 
-        except:
+        except Exception as e:
             print("Invalid URL, falling back to default URL")
             print("User URL:", url)
-            self.__init__("file:///index.html")
+            print("Error:", e)
+            self.scheme = "file"
+            self.host = ""
+            self.path = "./index.html"
+            self.port = 8000
 
     # Request Method
     def request(self):
@@ -104,7 +109,7 @@ class Browser:
         # Pack and enable resizing on the canvas
         self.canvas.pack(fill = tkinter.BOTH, expand = True)
         
-        # self.window.bind("<Configure>", self.resize) #TODO: Fix this
+        self.window.bind("<Configure>", self.resize)
         
         self.scroll = 0
         self.window.bind("<Down>", self.scrollDown)
@@ -113,11 +118,14 @@ class Browser:
         self.window.bind("<Button-5>", self.scrollDown)
         self.SCROLLSTEP = 100
         self.pageText = ""
+        self.width, self.height = WIDTH, HEIGHT
         
-    def resize(self, e):
-        WIDTH, HEIGHT = e.width, e.height
-        self.display_list = layout(self.pageText)
-        self.draw()
+    # Windows has resized, update the display list
+    def resize(self, event):
+        if (self.width, self.height) != (event.width, event.height):
+            self.width, self.height = event.width, event.height
+            self.display_list = layout(self.pageText, self.width, self.height)
+            self.draw()
         
     def load(self, url):
         if url.scheme == "file": # Handle file schema
@@ -128,15 +136,20 @@ class Browser:
         
         self.pageText = lex(body)
         
-        self.display_list = layout(self.pageText)
+        self.display_list = layout(self.pageText, self.width, self.height)
         self.draw()
                 
     def draw(self):
         self.canvas.delete("all")
+        HEIGHT = self.height
+        WIDTH = self.width
         for x, y, c in self.display_list:
             if y > self.scroll + HEIGHT: continue
             if y + VSTEP < self.scroll: continue
             self.canvas.create_text(x, y - self.scroll, text=c)
+            
+        # Draw a scrollbar
+        
             
     def scrollDown(self, e):
         self.scroll += self.SCROLLSTEP
@@ -147,15 +160,20 @@ class Browser:
             self.scroll -= self.SCROLLSTEP
         self.draw()
 
-def layout(text):
+def layout(text, width, height):
     display_list = []
     cursor_x, cursor_y = HSTEP, VSTEP
     
     for c in text:
+        if c == "\n":
+            cursor_x = HSTEP
+            cursor_y += VSTEP
+        elif c == "\t":
+            cursor_x += HSTEP * 4
         display_list.append((cursor_x, cursor_y, c))
         cursor_x += HSTEP
         
-        if cursor_x >= WIDTH - HSTEP:
+        if cursor_x >= width - HSTEP:
             cursor_x = HSTEP
             cursor_y += VSTEP
         
