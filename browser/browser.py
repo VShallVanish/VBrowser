@@ -185,7 +185,11 @@ class Element:
         self.parent = parent
         
     def __repr__(self):
-        return "<" + self.tag + ">"
+        attrs = [" " + key + "=\"" + value for key, value in self.attributes.items()]
+        attr_str = ""
+        for attr in attrs:
+            attr_str += attr
+        return "<" + self.tag + attr_str + ">"
 
 class Layout:
     def __init__(self, tokens):
@@ -200,7 +204,6 @@ class Layout:
         self.size = 12
         
         self.recurse(self.tokens)
-            
         self.flush()
         
     
@@ -255,7 +258,8 @@ class Layout:
             
     def recurse(self, tree):
         if isinstance(tree, Text):
-            self.word(tree.text)
+            for word in tree.text.split():
+                self.word(word)
         else:
             self.open_tag(tree.tag)
             for child in tree.children:
