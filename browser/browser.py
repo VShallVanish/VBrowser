@@ -50,6 +50,7 @@ class Browser:
         if (self.width, self.height) != (event.width, event.height):
             self.width, self.height = event.width, event.height
             self.document = DocumentLayout(self.nodes)
+            self.document.layout()
             self.display_list = []
             paint_tree(self.document, self.display_list)
             self.draw()
@@ -64,6 +65,7 @@ class Browser:
         self.nodes = HTMLParser(body).parse()
         
         self.document = DocumentLayout(self.nodes)
+        self.document.layout()
         self.display_list = []
         paint_tree(self.document, self.display_list)
         self.draw()
@@ -166,7 +168,7 @@ class BlockLayout:
             
         self.x = self.parent.x
         self.width = self.parent.width
-        mode = self.layout.mode()
+        mode = self.layout_mode()
         if mode == "block":
             previous = None
             for child in self.node.children:
@@ -287,5 +289,9 @@ if __name__ == "__main__":
     # nodes = HTMLParser(body).parse()
     # print_tree(nodes)
     
-    Browser().load(URL(sys.argv[1]))
+    if (len(sys.argv) > 1):
+        Browser().load(URL(sys.argv[1]))
+    
+    else:
+        Browser().load(URL("DEFAULT"))
     tkinter.mainloop()
